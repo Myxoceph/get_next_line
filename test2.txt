@@ -1,0 +1,5 @@
+### Core Functionality
+- **Line-by-Line Reading**: Efficiently reads one line at a time from any file descriptor
+- **Configurable Buffer**: Compile-time `BUFFER_SIZE` configuration for optimal performance
+- **Memory Efficient**: Minimal memory footprint with intelligent buffer reuse
+- **Error Resilient**: Comprehensive error handling for all edge cases

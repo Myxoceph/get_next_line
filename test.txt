@@ -1,0 +1,6 @@
+**Get Next Line** (`get_next_line`) is more than just a file reader—it's a carefully crafted solution that handles:
+- ⚡ **Dynamic buffer management** with customizable `BUFFER_SIZE`
+- 🧠 **Smart memory allocation** with zero memory leaks
+- 🔄 **Efficient line-by-line reading** from any file descriptor
+- 🛡️ **Robust error handling** for edge cases and invalid inputs
+- 📁 **Multiple file support** with static variable management
