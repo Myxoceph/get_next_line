@@ -6,7 +6,7 @@
 /*   By: abakirca <abakirca@student.42kocaeli.co    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/07 11:54:23 by abakirca          #+#    #+#             */
-/*   Updated: 2026/11/07 12:13:47 by abakirca         ###   ########.fr       */
+/*   Updated: 2026/11/07 12:49:02 by abakirca         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,5 +31,6 @@ typedef struct s_reader
 char	*get_next_line(int fd);
 void	copy_bytes(char *dst, const char *src, size_t len);
 void	reader_clear(t_reader *rd);
+int		reader_reserve(t_reader *rd, size_t extra);
 
 #endif
