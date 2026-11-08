@@ -6,7 +6,7 @@
 /*   By: abakirca <abakirca@student.42kocaeli.co    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/08 12:45:47 by abakirca          #+#    #+#             */
-/*   Updated: 2026/11/08 12:45:47 by abakirca         ###   ########.fr       */
+/*   Updated: 2026/11/08 14:01:21 by abakirca         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,6 +40,17 @@ static ssize_t	fill_reader(t_reader *rd, int fd)
 	return (bytes);
 }
 
+static char	*drain_reader(t_reader *rd)
+{
+	char	*line;
+
+	line = NULL;
+	if (rd->end > rd->start)
+		line = reader_cut(rd, rd->end - rd->start);
+	reader_clear(rd);
+	return (line);
+}
+
 char	*get_next_line(int fd)
 {
 	static t_reader	rd;
@@ -56,11 +67,14 @@ char	*get_next_line(int fd)
 		bytes = fill_reader(&rd, fd);
 		len = find_line(&rd);
 	}
-	if (len == 0)
+	if (bytes < 0)
 	{
 		reader_clear(&rd);
 		return (NULL);
 	}
-	line = reader_cut(&rd, len);
+	if (len == 0)
+		line = drain_reader(&rd);
+	else
+		line = reader_cut(&rd, len);
 	return (line);
 }
