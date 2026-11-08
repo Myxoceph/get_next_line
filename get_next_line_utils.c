@@ -6,7 +6,7 @@
 /*   By: abakirca <abakirca@student.42kocaeli.co    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/07 12:13:47 by abakirca          #+#    #+#             */
-/*   Updated: 2026/11/07 12:49:02 by abakirca         ###   ########.fr       */
+/*   Updated: 2026/11/08 11:44:12 by abakirca         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,4 +64,26 @@ int	reader_reserve(t_reader *rd, size_t extra)
 	rd->data = fresh;
 	rd->cap = new_cap;
 	return (1);
+}
+
+char	*reader_cut(t_reader *rd, size_t len)
+{
+	char	*line;
+
+	line = malloc(len + 1);
+	if (!line)
+	{
+		reader_clear(rd);
+		return (NULL);
+	}
+	copy_bytes(line, rd->data + rd->start, len);
+	line[len] = '\0';
+	rd->start += len;
+	if (rd->start == rd->end)
+	{
+		rd->start = 0;
+		rd->end = 0;
+		rd->scanned = 0;
+	}
+	return (line);
 }
