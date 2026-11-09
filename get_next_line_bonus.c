@@ -6,7 +6,7 @@
 /*   By: abakirca <abakirca@student.42kocaeli.co    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/09 14:19:14 by abakirca          #+#    #+#             */
-/*   Updated: 2026/11/09 14:19:14 by abakirca         ###   ########.fr       */
+/*   Updated: 2026/11/09 14:51:46 by abakirca         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -65,6 +65,22 @@ static t_fd_node	*fd_node_get(t_fd_node **head, int fd)
 	return (node);
 }
 
+static void	fd_node_remove(t_fd_node **head, int fd)
+{
+	t_fd_node	**link;
+	t_fd_node	*node;
+
+	link = head;
+	while (*link && (*link)->fd != fd)
+		link = &(*link)->next;
+	node = *link;
+	if (!node)
+		return ;
+	*link = node->next;
+	reader_clear(&node->reader);
+	free(node);
+}
+
 char	*get_next_line(int fd)
 {
 	static t_fd_node	*head;
@@ -89,6 +105,6 @@ char	*get_next_line(int fd)
 	if (len > 0)
 		line = reader_cut(&node->reader, len);
 	if (bytes <= 0 || !line)
-		reader_clear(&node->reader);
+		fd_node_remove(&head, fd);
 	return (line);
 }
