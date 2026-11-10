@@ -6,30 +6,15 @@
 
 > *"Reading is to the mind what exercise is to the body."* - Joseph Addison
 
-A robust and efficient C function that reads a text file line by line, designed as part of the 42 School curriculum. This project demonstrates advanced memory management, buffer optimization, and file I/O operations in C.
+A C function that returns a file descriptor's content one line at a time, written for the 42 School curriculum. This version is a full rewrite: instead of the classic "join the buffer into a stash" approach, it uses a **growable buffer with read/scan indexes**, so every byte is read, scanned and copied a constant number of times.
 
-## ✨ What Makes This Special
+## ✨ What Makes This Version Different
 
-**Get Next Line** (`get_next_line`) is more than just a file reader—it's a carefully crafted solution that handles:
-- ⚡ **Dynamic buffer management** with customizable `BUFFER_SIZE`
-- 🧠 **Smart memory allocation** with zero memory leaks
-- 🔄 **Efficient line-by-line reading** from any file descriptor
-- 🛡️ **Robust error handling** for edge cases and invalid inputs
-- 📁 **Multiple file support** with static variable management
-
-## 🚀 Key Features
-
-### Core Functionality
-- **Line-by-Line Reading**: Efficiently reads one line at a time from any file descriptor
-- **Configurable Buffer**: Compile-time `BUFFER_SIZE` configuration for optimal performance
-- **Memory Efficient**: Minimal memory footprint with intelligent buffer reuse
-- **Error Resilient**: Comprehensive error handling for all edge cases
-
-### Technical Highlights
-- **Static Variables**: Maintains reading state between function calls
-- **Dynamic Memory Management**: Smart allocation and deallocation strategies
-- **Buffer Optimization**: Handles partial reads and newline detection
-- **Cross-Platform**: Works on any UNIX-like system
+- ⚡ **Linear time**: no `strjoin` per `read()`, so very long lines no longer cost O(n²)
+- 🧱 **No stack buffer**: data is read straight into a heap buffer, so `BUFFER_SIZE=10000000` works
+- 🔍 **Each byte scanned once**: the newline search resumes where it stopped last time
+- ♻️ **Buffer reuse**: consumed lines are dropped by moving an index, unread bytes are compacted only when space is needed
+- 📂 **Bonus: any number of file descriptors** with a single static variable (a linked list of per-fd readers), freed as soon as an fd hits EOF or an error
 
 ## 📋 Function Prototype
 
@@ -37,201 +22,123 @@ A robust and efficient C function that reads a text file line by line, designed 
 char *get_next_line(int fd);
 ```
 
-### Parameters
-- `fd`: File descriptor to read from (0 for stdin, or any valid file descriptor)
+- `fd`: file descriptor to read from (regular file, pipe, `0` for stdin, ...)
+- **Returns** the next line including its `\n` (the last line may have none), or `NULL` at end of file or on error (invalid fd, `read()` failure, allocation failure)
 
-### Return Value
-- **Success**: Returns a string containing the next line (including `\n` if present)
-- **End of File**: Returns `NULL` when there are no more lines to read
-- **Error**: Returns `NULL` on error (invalid fd, read error, memory allocation failure)
+## 🛠️ Usage Example
 
-## 🛠️ Usage Examples
-
-### Basic File Reading
 ```c
 #include "get_next_line.h"
 #include <fcntl.h>
 #include <stdio.h>
+#include <unistd.h>
 
-int main(void)
+int	main(void)
 {
-    int fd;
-    char *line;
-    
-    fd = open("example.txt", O_RDONLY);
-    if (fd == -1)
-        return (1);
-    
-    while ((line = get_next_line(fd)) != NULL)
-    {
-        printf("%s", line);
-        free(line);
-    }
-    
-    close(fd);
-    return (0);
+	int		fd;
+	char	*line;
+
+	fd = open("example.txt", O_RDONLY);
+	if (fd == -1)
+		return (1);
+	line = get_next_line(fd);
+	while (line)
+	{
+		printf("%s", line);
+		free(line);
+		line = get_next_line(fd);
+	}
+	close(fd);
+	return (0);
 }
 ```
 
-### Reading from Standard Input
-```c
-#include "get_next_line.h"
-#include <stdio.h>
-
-int main(void)
-{
-    char *line;
-    
-    printf("Enter lines (Ctrl+D to end):\n");
-    while ((line = get_next_line(0)) != NULL)
-    {
-        printf("You entered: %s", line);
-        free(line);
-    }
-    
-    return (0);
-}
-```
+For the bonus, include `get_next_line_bonus.h` instead and call `get_next_line()` with different file descriptors in any order.
 
 ## ⚙️ Compilation
 
-### Standard Compilation
 ```bash
-gcc -Wall -Wextra -Werror -D BUFFER_SIZE=42 get_next_line.c get_next_line_utils.c
+# mandatory
+cc -Wall -Wextra -Werror -D BUFFER_SIZE=42 get_next_line.c get_next_line_utils.c main.c
+
+# bonus (multiple file descriptors)
+cc -Wall -Wextra -Werror -D BUFFER_SIZE=42 get_next_line_bonus.c get_next_line_utils_bonus.c main.c
 ```
 
-### Custom Buffer Size
-```bash
-gcc -Wall -Wextra -Werror -D BUFFER_SIZE=1024 get_next_line.c get_next_line_utils.c
-```
-
-### Performance Testing
-```bash
-# Small buffer for testing
-gcc -D BUFFER_SIZE=1 get_next_line.c get_next_line_utils.c
-
-# Large buffer for performance
-gcc -D BUFFER_SIZE=8192 get_next_line.c get_next_line_utils.c
-```
+`-D BUFFER_SIZE` is optional; the default is `64`. Any positive value works, from `1` to `10000000`.
 
 ## 📁 Project Structure
 
 ```
 get_next_line/
-├── 📄 get_next_line.c          # Main function implementation
-├── 📄 get_next_line_utils.c    # Utility functions
-├── 📄 get_next_line.h          # Header file with prototypes
-└── 📖 README.md               # This documentation
+├── get_next_line.h              # t_reader struct and prototypes
+├── get_next_line.c              # newline scan, read step, get_next_line
+├── get_next_line_utils.c        # buffer growth, compaction, line extraction
+├── get_next_line_bonus.h        # adds t_fd_node (per-fd list)
+├── get_next_line_bonus.c        # per-fd lookup/removal + get_next_line
+└── get_next_line_utils_bonus.c  # same helpers for the bonus build
 ```
 
-## 🧩 Architecture Overview
+## 🧩 How It Works
 
-### Core Components
+The state is a single struct:
 
-#### `get_next_line.c`
-- **`get_next_line(int fd)`**: Main function that orchestrates the reading process
-- **`copy_to_stash()`**: Manages buffer concatenation and memory
-- **`nl_check()`**: Detects newline characters in the buffer
-- **`extract_line()`**: Extracts a complete line from the buffer
-- **`recreate_stash()`**: Updates the static buffer after line extraction
+```c
+typedef struct s_reader
+{
+	char	*data;     /* heap buffer                           */
+	size_t	cap;       /* allocated size                        */
+	size_t	start;     /* first byte not returned yet           */
+	size_t	end;       /* end of valid data                     */
+	size_t	scanned;   /* bytes before this were checked for \n */
+}	t_reader;
+```
 
-#### `get_next_line_utils.c`
-- **`ft_strlen()`**: Safe string length calculation
-- **`ft_strdup()`**: String duplication with error handling
-- **`ft_strjoin()`**: Efficient string concatenation
-- **`ft_substr()`**: Substring extraction utility
-- **`free_stash()`**: Smart memory management for static variables
+```
+data:  [ returned lines ][ pending bytes ............ ][ free space ]
+       0                 start          scanned       end           cap
+```
 
-## 🎯 Performance Characteristics
+1. **Scan** `data[scanned .. end)` for `\n`. If found, the line is `data[start .. \n]`.
+2. Otherwise **read** up to `BUFFER_SIZE` bytes directly into `data + end`. Before reading, make room: first slide the pending bytes to the front (compaction), and only if that is not enough, reallocate with at least double the capacity.
+3. **Cut** the line into a fresh string and advance `start`. When the buffer becomes empty, all indexes go back to `0`.
+4. At **EOF**, the remaining pending bytes are the last line. On EOF or error the buffer is freed.
 
-| Buffer Size | Memory Usage | Speed | Best For |
-|-------------|--------------|-------|----------|
-| 1-10        | Very Low     | Slow  | Testing edge cases |
-| 32-128      | Low          | Good  | Small files |
-| 1024-4096   | Medium       | Fast  | Most applications |
-| 8192+       | High         | Very Fast | Large files |
+**Bonus:** a single `static t_fd_node *head` holds one `t_reader` per file descriptor. A node is created the first time an fd is seen and unlinked (pointer-to-pointer, no special case for the head) as soon as that fd reaches EOF or fails, so finished fds hold no memory and there is no `OPEN_MAX` limit.
 
-## 🔍 Technical Deep Dive
+## 📈 Benchmarks
 
-### Memory Management Strategy
-The function uses a **static variable** to maintain state between calls, enabling:
-- Efficient partial line buffering
-- Minimal memory allocation overhead
-- Automatic cleanup on function completion
+Measured on an Apple M5 (macOS 26), output redirected to `/dev/null`:
 
-### Buffer Optimization
-- **Dynamic buffer sizing** at compile time
-- **Intelligent read operations** that minimize system calls
-- **Smart newline detection** for efficient line extraction
+| Input | BUFFER_SIZE=1 | 42 | 1024 | 8192 |
+|-------|---------------|----|------|------|
+| 10 MB, ~170k short lines | 10.44 s | 0.67 s | 0.44 s | 0.49 s |
+| 10 MB, one single line   | 10.06 s | 0.36 s | 0.19 s | 0.16 s |
 
-### Error Handling
-- **Invalid file descriptors**: Immediate return with cleanup
-- **Memory allocation failures**: Graceful degradation with resource cleanup
-- **Read errors**: Proper error propagation and state reset
+`BUFFER_SIZE=1` is dominated by the ten million `read()` system calls, not by copying.
 
-## 🧪 Testing Strategy
+Compared with my previous stash/`strjoin` implementation, on a **1 MB file with a single line** (`BUFFER_SIZE=42`):
 
-### Edge Cases Covered
-- ✅ Empty files
-- ✅ Files without newlines
-- ✅ Very long lines
-- ✅ Binary files
-- ✅ Invalid file descriptors
-- ✅ Memory allocation failures
-- ✅ Multiple simultaneous file reads
+| Implementation | Time |
+|----------------|------|
+| Old (`strjoin` each read, O(n²)) | 40.59 s |
+| New (growable buffer, O(n))      | 0.01 s |
 
-### Buffer Size Testing
-The implementation is tested with various `BUFFER_SIZE` values:
-- `BUFFER_SIZE = 1` (stress testing)
-- `BUFFER_SIZE = 42` (standard)
-- `BUFFER_SIZE = 9999999` (extreme cases)
+## 🧪 Testing
 
-## 💡 Key Learning Outcomes
+Verified with `BUFFER_SIZE` = 1, 2, 3, 7, 42, 9999 and 10000000:
 
-This project demonstrates mastery of:
+- ✅ Output identical byte-for-byte to the input file (files ending with and without `\n`, empty file, only newlines, single character, 5000 random lines, 200k-character lines)
+- ✅ Standard input and a slow pipe delivering partial lines
+- ✅ Invalid / closed file descriptors and `BUFFER_SIZE=0` return `NULL`
+- ✅ Bonus: 7 files read round-robin, with invalid fds interleaved, each output matches its source
+- ✅ 0 leaks (`leaks --atExit`), `norminette` clean, `-Wall -Wextra -Werror`
 
-### **Advanced C Programming**
-- Static variables and their lifecycle
-- Dynamic memory management
-- File I/O operations and system calls
-- String manipulation and buffer handling
+## 🎖️ 42 Standards
 
-### **Software Engineering Principles**
-- Modular code organization
-- Error handling best practices
-- Memory leak prevention
-- Performance optimization techniques
-
-### **Problem-Solving Skills**
-- Algorithm design for streaming data
-- Buffer management strategies
-- Edge case identification and handling
-
-## 🎖️ 42 School Standards
-
-This implementation strictly adheres to:
-- **Norm compliance**: All code follows 42's coding standards
-- **Memory management**: Zero memory leaks (verified with valgrind)
-- **Error handling**: Comprehensive error checking
-- **Modularity**: Clean separation of concerns
-- **Documentation**: Clear, maintainable code
-
-## 📈 Performance Benchmarks
-
-| File Size | BUFFER_SIZE=42 | BUFFER_SIZE=1024 | BUFFER_SIZE=8192 |
-|-----------|----------------|------------------|------------------|
-| 1KB       | 0.001s         | 0.001s           | 0.001s           |
-| 100KB     | 0.025s         | 0.008s           | 0.003s           |
-| 10MB      | 2.1s           | 0.7s             | 0.2s             |
-
-*Benchmarks performed on Ubuntu 20.04, Intel i7-8750H*
-
-## 🤝 Contributing
-
-While this is a school project, feedback and suggestions are always welcome! Feel free to:
-- Report any issues you discover
-- Suggest improvements to the documentation
-- Share your own implementations and optimizations
+- Norm v4.1 compliant (≤ 25 lines and ≤ 5 functions per file, no `for`/ternary, ...)
+- Only `read`, `malloc` and `free` are used; no libft, no `lseek`, no globals
+- Bonus uses exactly one static variable
 
 ## 📜 License
 
